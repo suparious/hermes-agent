@@ -42,12 +42,14 @@ def check_tool_call(session_id: str, tool_name: str) -> Optional[str]:
     Returns None if allowed (or no limiter registered).
     Returns a denial message string if blocked.
 
-    Also records the call if allowed.
+    Check + record is atomic to prevent parallel tool calls from exceeding limits.
     """
-    limiter = get_limiter(session_id)
+    with _lock:
+        limiter = _session_limiters.get(session_id)
     if limiter is None:
         return None  # No limiter = no restrictions (admin or non-daimon)
 
+    # Atomic check-and-record to prevent race with parallel tool calls
     if not limiter.check(tool_name):
         return limiter.denial_message(tool_name)
 

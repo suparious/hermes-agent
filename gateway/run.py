@@ -8357,6 +8357,16 @@ class GatewayRunner:
         """Handle /daimon — admin controls for the Daimon Discord bot."""
         from gateway.config import Platform
 
+        # Admin authorization check
+        adapter = self.adapters.get(Platform.DISCORD) if hasattr(self, "adapters") else None
+        daimon_hooks = getattr(adapter, "_daimon", None) if adapter else None
+
+        if daimon_hooks and daimon_hooks.active:
+            from gateway.daimon.tier import resolve_tier
+            tier = resolve_tier(event.source.user_id, daimon_hooks.manager.config)
+            if not tier.is_admin:
+                return "⛔ This command is admin-only."
+
         text = (event.text or "").strip()
         # Strip leading "/daimon"
         for prefix in ("/daimon ", "/daimon"):
@@ -13187,27 +13197,13 @@ class GatewayRunner:
         agent_cfg_local = user_config.get("agent") or {}
         disabled_toolsets = agent_cfg_local.get("disabled_toolsets") or None
 
-        # ── Daimon tier-based overrides (Discord) ─────────────────────────
+        # ── Daimon tier detection (Discord) — pre-compute, apply inside run_sync ──
         _daimon_overrides = None
         try:
             from gateway.daimon.gateway_hooks import get_agent_overrides, apply_overrides, setup_tool_gate, teardown_tool_gate, redact_output
             _daimon_overrides = get_agent_overrides(user_config, source.user_id, platform_key)
-            if _daimon_overrides:
-                _applied = apply_overrides(
-                    _daimon_overrides,
-                    model=model,
-                    max_iterations=max_iterations,
-                    disabled_toolsets=disabled_toolsets,
-                )
-                model = _applied["model"]
-                max_iterations = _applied["max_iterations"]
-                disabled_toolsets = _applied["disabled_toolsets"]
-                if _applied.get("ephemeral_system_prompt"):
-                    combined_ephemeral = _applied["ephemeral_system_prompt"]
-                if not _daimon_overrides.tier.is_admin:
-                    setup_tool_gate(session_id, user_config)
         except ImportError:
-            pass  # gateway.daimon not available — skip
+            pass
         except Exception as _daimon_err:
             logger.debug("Daimon override error (non-fatal): %s", _daimon_err)
 
@@ -13758,6 +13754,26 @@ class GatewayRunner:
                 }
 
             pr = self._provider_routing
+
+            # ── Daimon tier overrides (apply inside run_sync where model/max_iterations exist) ──
+            if _daimon_overrides:
+                try:
+                    _applied = apply_overrides(
+                        _daimon_overrides,
+                        model=model,
+                        max_iterations=max_iterations,
+                        disabled_toolsets=disabled_toolsets,
+                    )
+                    model = _applied["model"]
+                    max_iterations = _applied["max_iterations"]
+                    disabled_toolsets = _applied["disabled_toolsets"]
+                    if _applied.get("ephemeral_system_prompt"):
+                        combined_ephemeral = _applied["ephemeral_system_prompt"]
+                    if not _daimon_overrides.tier.is_admin:
+                        setup_tool_gate(session_id, user_config)
+                except Exception as _e:
+                    logger.debug("Daimon apply_overrides failed: %s", _e)
+
             reasoning_config = self._resolve_session_reasoning_config(
                 source=source,
                 session_key=session_key,

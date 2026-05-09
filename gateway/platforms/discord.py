@@ -851,6 +851,14 @@ class DiscordAdapter(BasePlatformAdapter):
             if self._slash_commands:
                 self._register_slash_commands()
 
+            # ── Daimon: clean up sessions on thread archive ──
+            @self._client.event
+            async def on_thread_update(before, after):
+                """Release Daimon session when thread is archived."""
+                if adapter_self._daimon and adapter_self._daimon.active:
+                    if getattr(after, "archived", False) and not getattr(before, "archived", False):
+                        adapter_self._daimon.on_thread_closed(str(after.id))
+
             # Start the bot in background
             self._bot_task = asyncio.create_task(self._client.start(self.config.token))
 
@@ -4183,6 +4191,8 @@ class DiscordAdapter(BasePlatformAdapter):
                                 await thread.send(_deny_msg)
                             except Exception:
                                 pass
+                            # Unmark the thread so it doesn't bypass mention checks
+                            self._threads.unmark(thread_id)
                             return  # Stop processing — session denied
 
         # Determine message type
