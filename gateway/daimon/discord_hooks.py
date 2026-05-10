@@ -82,6 +82,11 @@ class DaimonDiscordHooks:
         """Clear buffer for a thread (cleanup on close)."""
         self._window_buffer.clear(thread_id)
 
+    def increment_turn(self, thread_id: str) -> None:
+        """Increment turn counter after agent response delivery."""
+        if self._manager:
+            self._manager.increment_turn(thread_id)
+
     def should_process_in_thread(self, author_id: str, thread_id: str, role_ids: Optional[list[str]] = None) -> tuple[bool, str]:
         """Check if a message should be processed (thread ownership + turn cap).
 

@@ -63,6 +63,8 @@ class DaimonSessionManager:
         """Check if a message should be processed (thread ownership + turn cap).
 
         Returns (allowed, denial_reason). denial_reason is empty when allowed.
+        Turn counter is checked here but NOT incremented — call increment_turn()
+        after the agent response is delivered.
         """
         # Thread ownership / role check
         if not self._threads.should_process(author_id, thread_id, self._cfg, role_ids=role_ids):
@@ -70,17 +72,21 @@ class DaimonSessionManager:
 
         # Turn cap check (only for non-admin users)
         from gateway.daimon.tier import resolve_tier
+        from gateway.daimon.gateway_hooks import get_thread_turns
         tier = resolve_tier(author_id, self._cfg, role_ids=role_ids)
         if tier is not None and not tier.is_admin and self._cfg.max_turns_per_thread > 0:
-            count = self._turn_counts.get(thread_id, 0)
+            count = get_thread_turns(thread_id)
             if count >= self._cfg.max_turns_per_thread:
                 return False, (
                     f"⏳ This thread has used all {self._cfg.max_turns_per_thread} message turns. "
                     f"Start a new thread to continue."
                 )
-            self._turn_counts[thread_id] = count + 1
 
         return True, ""
+
+    def increment_turn(self, thread_id: str) -> None:
+        """Increment the turn counter for a thread. Call after agent response delivery."""
+        self._turn_counts[thread_id] = self._turn_counts.get(thread_id, 0) + 1
 
     def start_session(
         self, thread_id: str, user_id: str, raw_config: dict

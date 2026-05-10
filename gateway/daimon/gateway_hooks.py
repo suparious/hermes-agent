@@ -150,3 +150,29 @@ def _resolve_prompt_vars(prompt: str, source) -> str:
     prompt = prompt.replace("<DISCORD_THREAD_URL>", thread_url)
     prompt = prompt.replace("<THREAD_ID>", thread_id)
     return prompt
+
+
+# ── Module-level turn counter (accessible from gateway/run.py) ──
+# Same pattern as tool_gate.py — module-level registry keyed by thread_id.
+import threading
+
+_turn_lock = threading.Lock()
+_turn_counts: dict[str, int] = {}
+
+
+def increment_thread_turn(thread_id: str) -> None:
+    """Increment turn counter for a thread after agent response delivery."""
+    with _turn_lock:
+        _turn_counts[thread_id] = _turn_counts.get(thread_id, 0) + 1
+
+
+def get_thread_turns(thread_id: str) -> int:
+    """Get current turn count for a thread."""
+    with _turn_lock:
+        return _turn_counts.get(thread_id, 0)
+
+
+def clear_thread_turns(thread_id: str) -> None:
+    """Clear turn count for a thread (cleanup)."""
+    with _turn_lock:
+        _turn_counts.pop(thread_id, None)

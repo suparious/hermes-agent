@@ -14323,6 +14323,16 @@ class GatewayRunner:
                 except Exception:
                     pass
 
+            # ── Daimon turn counter: increment on successful response ──
+            if final_response and _daimon_overrides and _daimon_overrides.tier and not _daimon_overrides.tier.is_admin:
+                try:
+                    from gateway.daimon.gateway_hooks import increment_thread_turn
+                    _thread_id = source.thread_id
+                    if _thread_id:
+                        increment_thread_turn(_thread_id)
+                except (ImportError, Exception):
+                    pass
+
             # Extract actual token counts from the agent instance used for this run
             _last_prompt_toks = 0
             _input_toks = 0
