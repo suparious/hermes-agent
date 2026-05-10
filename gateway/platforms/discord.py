@@ -3442,6 +3442,7 @@ class DiscordAdapter(BasePlatformAdapter):
             user_name=interaction.user.display_name,
             thread_id=thread_id,
             chat_topic=chat_topic,
+            role_ids=[str(r.id) for r in interaction.user.roles] if hasattr(interaction.user, 'roles') else None,
         )
 
         msg_type = MessageType.COMMAND if text.startswith("/") else MessageType.TEXT
@@ -3524,6 +3525,7 @@ class DiscordAdapter(BasePlatformAdapter):
             user_name=interaction.user.display_name,
             thread_id=thread_id,
             chat_topic=chat_topic,
+            role_ids=[str(r.id) for r in interaction.user.roles] if hasattr(interaction.user, 'roles') else None,
         )
 
         _parent_channel = self._thread_parent_channel(getattr(interaction, "channel", None))
@@ -4258,6 +4260,7 @@ class DiscordAdapter(BasePlatformAdapter):
             guild_id=str(guild.id) if guild else None,
             parent_chat_id=parent_channel_id,
             message_id=str(message.id),
+            role_ids=[str(r.id) for r in message.author.roles] if hasattr(message.author, 'roles') else None,
         )
 
         # Build media URLs -- download image attachments to local cache so the
